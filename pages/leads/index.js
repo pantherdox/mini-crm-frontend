@@ -203,7 +203,7 @@ export default function Leads() {
             <option value="Closed Won">Closed Won</option>
             <option value="Closed Lost">Closed Lost</option>
           </select>
-          <button onClick={openCreate} className="md:hidden ml-0 sm:ml-2 px-3 py-2 bg-blue-600 text-white rounded">
+          <button onClick={openCreate} className="md:hidden ml-0 sm:ml-1 px-2 py-1 bg-blue-600 text-white rounded">
             +
           </button>
           <button onClick={openCreate} className="hidden md:block ml-0 sm:ml-2 px-3 py-2 bg-blue-600 text-white rounded">
