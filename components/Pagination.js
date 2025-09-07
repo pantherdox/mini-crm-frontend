@@ -1,1 +1,26 @@
-export default function Pagination({page,total,limit,onChange}){ const totalPages=Math.max(Math.ceil(total/limit),1); return <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between mt-4 gap-2'><div className='text-sm'>Page {page} of {totalPages}</div><div className='space-x-2'><button disabled={page<=1} onClick={()=>onChange(page-1)} className='px-3 py-1 bg-gray-200 rounded disabled:opacity-50'>Prev</button><button disabled={page>=totalPages} onClick={()=>onChange(page+1)} className='px-3 py-1 bg-gray-200 rounded disabled:opacity-50'>Next</button></div></div> }
+export default function Pagination({ page, total, limit, onChange }) {
+  const totalPages = Math.max(Math.ceil(total / limit), 1);
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-4 gap-2">
+      <div className="text-sm">
+        Page {page} of {totalPages}
+      </div>
+      <div className="space-x-2">
+        <button
+          disabled={page <= 1}
+          onClick={() => onChange(page - 1)}
+          className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+        >
+          Prev
+        </button>
+        <button
+          disabled={page >= totalPages}
+          onClick={() => onChange(page + 1)}
+          className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
