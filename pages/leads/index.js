@@ -17,6 +17,7 @@ export default function Leads() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [archivedFilter, setArchivedFilter] = useState("active"); // active | archived | all
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", status: "New", source: "" });
@@ -30,6 +31,12 @@ export default function Leads() {
     }
     if (search) {
       url += `&q=${encodeURIComponent(search)}`;
+    }
+    // Server-side archived filtering when supported
+    if (archivedFilter === "active") {
+      url += `&archived=false`;
+    } else if (archivedFilter === "archived") {
+      url += `&archived=true`;
     }
     return url;
   };
@@ -90,6 +97,27 @@ export default function Leads() {
     }
   };
 
+  const archiveLeadOptimistic = async (leadId) => {
+    if (!data) return;
+    const previous = data;
+    const optimistic = {
+      ...data,
+      items: data.items.filter((i) => i._id !== leadId),
+      total: Math.max((data.total || 1) - 1, 0),
+    };
+    // Optimistic update: remove from list immediately
+    mutate(optimistic, false);
+    try {
+      await api.delete(`/leads/${leadId}`);
+      // Revalidate to sync with server
+      mutate();
+    } catch (error) {
+      // Revert on failure
+      mutate(previous, false);
+      alert(error.response?.data?.message || 'Failed to archive lead');
+    }
+  };
+
   const columns = [
     {
       key: "name",
@@ -138,8 +166,7 @@ export default function Leads() {
           <button
             onClick={async () => {
               if (confirm("Archive?")) {
-                await api.delete("/leads/" + r._id);
-                mutate();
+                await archiveLeadOptimistic(r._id);
               }
             }}
             className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-red-300 text-red-700 rounded hover:bg-red-50"
@@ -203,6 +230,18 @@ export default function Leads() {
             <option value="Closed Won">Closed Won</option>
             <option value="Closed Lost">Closed Lost</option>
           </select>
+          <select
+            value={archivedFilter}
+            onChange={(e) => {
+              setArchivedFilter(e.target.value);
+              handleFilterChange();
+            }}
+            className="border p-2 rounded"
+          >
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+            <option value="all">All</option>
+          </select>
           <button onClick={openCreate} className="md:hidden ml-0 sm:ml-1 px-2 py-1 bg-blue-600 text-white rounded">
             +
           </button>
@@ -234,7 +273,15 @@ export default function Leads() {
           </div>
         </form>
       )}
-      <Table columns={columns} data={data.items} />
+      {(() => {
+        const isArchived = (lead) => lead?.isArchived === true || !!lead?.archived || !!lead?.archivedAt;
+        const filteredItems = archivedFilter === "active"
+          ? data.items.filter((l) => !isArchived(l))
+          : archivedFilter === "archived"
+          ? data.items.filter((l) => isArchived(l))
+          : data.items;
+        return <Table columns={columns} data={filteredItems} />;
+      })()}
       <Pagination
         page={data.page}
         total={data.total}
