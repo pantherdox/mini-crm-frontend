@@ -21,6 +21,7 @@ export default function Leads() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", status: "New", source: "" });
   const [reassignLead, setReassignLead] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Build the URL with filters
   const buildUrl = () => {
@@ -31,6 +32,8 @@ export default function Leads() {
     if (search) {
       url += `&q=${encodeURIComponent(search)}`;
     }
+    // Ask backend to include/exclude archived; default exclude
+    url += `&archived=${showArchived ? "true" : "false"}`;
     return url;
   };
 
@@ -95,9 +98,14 @@ export default function Leads() {
       key: "name",
       title: "Name",
       render: (r) => (
-        <Link href={"/leads/" + r._id} className="text-blue-600">
-          {r.name}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href={"/leads/" + r._id} className="text-blue-600">
+            {r.name}
+          </Link>
+          {(r.isArchived || r.archivedAt) && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">Archived</span>
+          )}
+        </div>
       ),
     },
     { key: "email", title: "Email" },
@@ -138,8 +146,14 @@ export default function Leads() {
           <button
             onClick={async () => {
               if (confirm("Archive?")) {
-                await api.delete("/leads/" + r._id);
-                mutate();
+                // Optimistically remove from the list
+                mutate((prev) => prev ? { ...prev, items: prev.items.filter((i) => i._id !== r._id), total: Math.max(0, (prev.total || 0) - 1) } : prev, false);
+                try {
+                  await api.delete("/leads/" + r._id);
+                } finally {
+                  // Revalidate to sync with server
+                  mutate();
+                }
               }
             }}
             className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-red-300 text-red-700 rounded hover:bg-red-50"
@@ -203,6 +217,17 @@ export default function Leads() {
             <option value="Closed Won">Closed Won</option>
             <option value="Closed Lost">Closed Lost</option>
           </select>
+          <label className="flex items-center gap-2 text-sm ml-1">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => {
+                setShowArchived(e.target.checked);
+                handleFilterChange();
+              }}
+            />
+            Show archived
+          </label>
           <button onClick={openCreate} className="md:hidden ml-0 sm:ml-1 px-2 py-1 bg-blue-600 text-white rounded">
             +
           </button>
@@ -234,7 +259,13 @@ export default function Leads() {
           </div>
         </form>
       )}
-      <Table columns={columns} data={data.items} />
+      {(() => {
+        // Fallback client-side filter: hide archived unless explicitly shown
+        const filteredItems = showArchived
+          ? data.items
+          : data.items.filter((i) => !(i.isArchived || i.archivedAt));
+        return <Table columns={columns} data={filteredItems} />;
+      })()}
       <Pagination
         page={data.page}
         total={data.total}
