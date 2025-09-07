@@ -21,6 +21,7 @@ export default function Leads() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", status: "New", source: "" });
   const [reassignLead, setReassignLead] = useState(null);
+  const [archivedOnly, setArchivedOnly] = useState(false);
 
   // Build the URL with filters
   const buildUrl = () => {
@@ -31,6 +32,7 @@ export default function Leads() {
     if (search) {
       url += `&q=${encodeURIComponent(search)}`;
     }
+    url += `&archived=${archivedOnly ? "true" : "false"}`;
     return url;
   };
 
@@ -138,7 +140,15 @@ export default function Leads() {
           <button
             onClick={async () => {
               if (confirm("Archive?")) {
-                await api.delete("/leads/" + r._id);
+                mutate((current) => {
+                  if (!current) return current;
+                  const filtered = (current.items || []).filter((it) => it._id !== r._id);
+                  const nextTotal = typeof current.total === 'number' ? Math.max(0, current.total - 1) : current.total;
+                  return { ...current, items: filtered, total: nextTotal };
+                }, false);
+                try {
+                  await api.delete("/leads/" + r._id);
+                } catch (e) {}
                 mutate();
               }
             }}
@@ -157,6 +167,25 @@ export default function Leads() {
           >
             Convert
           </button>
+          {archivedOnly && (
+            <button
+              onClick={async () => {
+                try {
+                  await api.post(`/leads/${r._id}/restore`);
+                  mutate((current) => {
+                    if (!current) return current;
+                    const filtered = (current.items || []).filter((it) => it._id !== r._id);
+                    const nextTotal = typeof current.total === 'number' ? Math.max(0, current.total - 1) : current.total;
+                    return { ...current, items: filtered, total: nextTotal };
+                  }, false);
+                } catch (e) {}
+                mutate();
+              }}
+              className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
+            >
+              Restore
+            </button>
+          )}
           {user?.role === 'admin' && (
             <button
               onClick={() => setReassignLead(r)}
@@ -203,6 +232,17 @@ export default function Leads() {
             <option value="Closed Won">Closed Won</option>
             <option value="Closed Lost">Closed Lost</option>
           </select>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={archivedOnly}
+              onChange={(e) => {
+                setArchivedOnly(e.target.checked);
+                handleFilterChange();
+              }}
+            />
+            Archived only
+          </label>
           <button onClick={openCreate} className="md:hidden ml-0 sm:ml-1 px-2 py-1 bg-blue-600 text-white rounded">
             +
           </button>

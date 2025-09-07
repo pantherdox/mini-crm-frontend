@@ -70,6 +70,18 @@ export default function LeadDetail() {
     }
   };
 
+  const restoreLead = async () => {
+    if (confirm("Restore this lead?")) {
+      try {
+        await api.post(`/leads/${id}/restore`);
+        alert("Lead restored successfully!");
+        router.push("/leads");
+      } catch (error) {
+        alert("Error restoring lead: " + (error.response?.data?.message || error.message));
+      }
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case "New": return "blue";
@@ -117,6 +129,14 @@ export default function LeadDetail() {
             >
               Archive
             </button>
+            {(lead.isArchived || lead.archived) && (
+              <button
+                onClick={restoreLead}
+                className="md:px-4 px-2 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                Restore
+              </button>
+            )}
           </div>
         </div>
 
