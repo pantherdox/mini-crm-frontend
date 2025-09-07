@@ -21,6 +21,7 @@ export default function Leads() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", status: "New", source: "" });
   const [reassignLead, setReassignLead] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Build the URL with filters
   const buildUrl = () => {
@@ -30,6 +31,9 @@ export default function Leads() {
     }
     if (search) {
       url += `&q=${encodeURIComponent(search)}`;
+    }
+    if (showArchived) {
+      url += `&showArchived=true`;
     }
     return url;
   };
@@ -90,14 +94,39 @@ export default function Leads() {
     }
   };
 
+  const handleArchive = async (leadId) => {
+    try {
+      await api.patch(`/leads/${leadId}/archive`);
+      mutate();
+    } catch (error) {
+      alert(error.response?.data?.message || 'An error occurred while archiving');
+    }
+  };
+
+  const handleUnarchive = async (leadId) => {
+    try {
+      await api.patch(`/leads/${leadId}/unarchive`);
+      mutate();
+    } catch (error) {
+      alert(error.response?.data?.message || 'An error occurred while unarchiving');
+    }
+  };
+
   const columns = [
     {
       key: "name",
       title: "Name",
       render: (r) => (
-        <Link href={"/leads/" + r._id} className="text-blue-600">
-          {r.name}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href={"/leads/" + r._id} className="text-blue-600">
+            {r.name}
+          </Link>
+          {r.archived && (
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+              Archived
+            </span>
+          )}
+        </div>
       ),
     },
     { key: "email", title: "Email" },
@@ -129,35 +158,51 @@ export default function Leads() {
       title: "Actions",
       render: (r) => (
         <div className="space-x-2">
-          <button
-            onClick={() => openEdit(r)}
-            className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-blue-300 text-blue-700 rounded hover:bg-blue-50"
-          >
-            Edit
-          </button>
-          <button
-            onClick={async () => {
-              if (confirm("Archive?")) {
-                await api.delete("/leads/" + r._id);
-                mutate();
-              }
-            }}
-            className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-red-300 text-red-700 rounded hover:bg-red-50"
-          >
-            Archive
-          </button>
-          <button
-            onClick={async () => {
-              if (confirm("Convert?")) {
-                await api.post("/leads/" + r._id + "/convert");
-                mutate();
-              }
-            }}
-            className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-green-300 text-green-700 rounded hover:bg-green-50"
-          >
-            Convert
-          </button>
-          {user?.role === 'admin' && (
+          {!showArchived && (
+            <button
+              onClick={() => openEdit(r)}
+              className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-blue-300 text-blue-700 rounded hover:bg-blue-50"
+            >
+              Edit
+            </button>
+          )}
+          {!showArchived ? (
+            <button
+              onClick={() => {
+                if (confirm("Archive this lead?")) {
+                  handleArchive(r._id);
+                }
+              }}
+              className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-red-300 text-red-700 rounded hover:bg-red-50"
+            >
+              Archive
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (confirm("Unarchive this lead?")) {
+                  handleUnarchive(r._id);
+                }
+              }}
+              className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-green-300 text-green-700 rounded hover:bg-green-50"
+            >
+              Unarchive
+            </button>
+          )}
+          {!showArchived && (
+            <button
+              onClick={async () => {
+                if (confirm("Convert?")) {
+                  await api.post("/leads/" + r._id + "/convert");
+                  mutate();
+                }
+              }}
+              className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-green-300 text-green-700 rounded hover:bg-green-50"
+            >
+              Convert
+            </button>
+          )}
+          {!showArchived && user?.role === 'admin' && (
             <button
               onClick={() => setReassignLead(r)}
               className="inline-flex items-center md:px-3 px-2 py-1.5 md:text-sm text-xs font-medium border border-purple-300 text-purple-700 rounded hover:bg-purple-50"
@@ -180,7 +225,21 @@ export default function Leads() {
   return (
     <Layout>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-        <h1 className="text-xl font-bold">Leads</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-bold">Leads</h1>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => {
+                setShowArchived(e.target.checked);
+                setPage(1);
+              }}
+              className="rounded"
+            />
+            Show Archived
+          </label>
+        </div>
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -203,12 +262,16 @@ export default function Leads() {
             <option value="Closed Won">Closed Won</option>
             <option value="Closed Lost">Closed Lost</option>
           </select>
-          <button onClick={openCreate} className="md:hidden ml-0 sm:ml-1 px-2 py-1 bg-blue-600 text-white rounded">
-            +
-          </button>
-          <button onClick={openCreate} className="hidden md:block ml-0 sm:ml-2 px-3 py-2 bg-blue-600 text-white rounded">
-            New Lead
-          </button>
+          {!showArchived && (
+            <>
+              <button onClick={openCreate} className="md:hidden ml-0 sm:ml-1 px-2 py-1 bg-blue-600 text-white rounded">
+                +
+              </button>
+              <button onClick={openCreate} className="hidden md:block ml-0 sm:ml-2 px-3 py-2 bg-blue-600 text-white rounded">
+                New Lead
+              </button>
+            </>
+          )}
         </div>
       </div>
 
